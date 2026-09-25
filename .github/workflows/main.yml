@@ -1,6 +1,8 @@
 name: Android CI
 
 on:
+  push:
+    branches: [ main, develop, 'feat/**' ]
   pull_request:
     branches: [ main, develop ]
   workflow_dispatch:
@@ -22,5 +24,12 @@ jobs:
         java-version: '17'
         cache: 'gradle'
 
-    - name: Build with Gradle
-      run: ./gradlew assembleDebug
+    - name: Test and build with Gradle
+      run: ./gradlew testDebugUnitTest assembleDebug
+
+    - name: Upload debug APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: gnt-reader-debug-apk
+        path: app/build/outputs/apk/debug/app-debug.apk
+        if-no-files-found: error
