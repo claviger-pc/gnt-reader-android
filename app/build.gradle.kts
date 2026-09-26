@@ -94,6 +94,7 @@ dependencies {
     implementation(projects.feature.audio)
     implementation(projects.feature.concordance)
     implementation(projects.feature.gloss)
+    implementation(projects.feature.plans)
     implementation(projects.feature.reading)
     implementation(projects.feature.settingsUi)
     implementation(projects.feature.tutorial)

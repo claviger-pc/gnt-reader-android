@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
@@ -29,6 +30,7 @@ import androidx.navigation.compose.rememberNavController
 import com.mattrobertson.greek.reader.audio.ui.AudioPanel
 import com.mattrobertson.greek.reader.reading.ui.ComposeReader
 import com.mattrobertson.greek.reader.reading.ui.TableOfContents
+import com.mattrobertson.greek.reader.plans.ui.ReadingPlansScreen
 import com.mattrobertson.greek.reader.settings.ui.SettingsScreen
 import com.mattrobertson.greek.reader.tutorial.TutorialScreen
 import com.mattrobertson.greek.reader.ui.lib.MaxWidthColumn
@@ -125,6 +127,9 @@ fun MainScreen(
                                                     BottomNavItem.Contents -> {
                                                         screen = Screen.Contents
                                                     }
+                                                    BottomNavItem.Plans -> {
+                                                        screen = Screen.Plans
+                                                    }
                                                     BottomNavItem.Vocab -> {
                                                         screen = Screen.Vocab
                                                     }
@@ -141,18 +146,20 @@ fun MainScreen(
                                 }
                             }
                         }
-                    ) {
-                        ComposeReader(
-                            settings = settings,
-                            verseRepo = viewModel.verseRepo,
-                            listState = listState,
-                            onWordSelected = {
-                                word = it
-                                coroutineScope.launch {
-                                    bottomSheetState.show()
+                    ) { contentPadding ->
+                        Box(modifier = Modifier.padding(contentPadding)) {
+                            ComposeReader(
+                                settings = settings,
+                                verseRepo = viewModel.verseRepo,
+                                listState = listState,
+                                onWordSelected = {
+                                    word = it
+                                    coroutineScope.launch {
+                                        bottomSheetState.show()
+                                    }
                                 }
-                            }
-                        )
+                            )
+                        }
                     }
                 }
 
@@ -194,6 +201,23 @@ fun MainScreen(
                         onDismiss = {
                             screen = Screen.Reader
                         }
+                    )
+                }
+
+                AnimatedVisibility(
+                    visible = (screen == Screen.Plans),
+                    enter = slideInVertically(initialOffsetY = { height -> height }),
+                    exit = slideOutVertically(targetOffsetY = { height -> height })
+                ) {
+                    ReadingPlansScreen(
+                        onReadChapter = { ref ->
+                            coroutineScope.launch {
+                                listState.scrollToItem(ref.absoluteChapterNum())
+                            }
+                            viewModel.onChangeVerseRef(ref)
+                            screen = Screen.Reader
+                        },
+                        onDismiss = { screen = Screen.Reader }
                     )
                 }
 
