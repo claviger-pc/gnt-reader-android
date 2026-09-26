@@ -11,7 +11,7 @@ A digital reader's edition of the Greek New Testament for Android.
 
 ## Reading plans (v8.1.1)
 
-The six reading plans from v7 are available again. Start a plan, choose a reminder time, and enable the daily notification. Android may ask for notification permission (Android 13+) and exact alarm access (Android 12+). If exact alarms are not allowed, Android may deliver the reminder a little later than the selected time.
+The six reading plans from v7 are available again. Start a plan, then open Settings for its daily reminder toggle, notification time, and reset action. Android may ask for notification permission (Android 13+) and exact alarm access (Android 12+). If exact alarms are not allowed, Android may deliver the reminder a little later than the selected time.
 
 Version 8.1.1 also fixes a launch crash in optimized builds by preserving the field names required by generated protobuf messages.
 

@@ -4,6 +4,8 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
@@ -20,6 +22,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mattrobertson.greek.reader.ui.lib.*
 import com.mattrobertson.greek.reader.ui.settings.FontFamily
 import com.mattrobertson.greek.reader.ui.theme.AppTheme
+import com.mattrobertson.greek.reader.plans.ui.ReadingPlanSettingsSection
 import androidx.compose.ui.text.font.FontFamily.Companion.Default as DefaultMaterialFont
 
 @Preview(showBackground = true)
@@ -49,7 +52,10 @@ import androidx.compose.ui.text.font.FontFamily.Companion.Default as DefaultMate
             )
             VSpacer(40.dp)
 
-            MaxWidthColumn {
+            MaxWidthColumn(
+                modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.Top
+            ) {
                 ReaderPreview(settings)
 
                 VSpacer(30.dp)
@@ -86,6 +92,8 @@ import androidx.compose.ui.text.font.FontFamily.Companion.Default as DefaultMate
                     isEnabled = settings.versesOnNewLines,
                     onChange = viewModel::setVersesOnNewLines
                 )
+
+                ReadingPlanSettingsSection()
             }
         }
 
@@ -262,4 +270,3 @@ import androidx.compose.ui.text.font.FontFamily.Companion.Default as DefaultMate
         modifier = modifier
     )
 }
-
