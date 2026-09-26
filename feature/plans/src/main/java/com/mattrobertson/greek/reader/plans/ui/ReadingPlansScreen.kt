@@ -2,6 +2,13 @@ package com.mattrobertson.greek.reader.plans.ui
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.app.TimePickerDialog
+import android.os.Build
+import android.provider.Settings
+import android.net.Uri
+import android.content.Intent
+import android.app.AlarmManager
+import android.Manifest
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -12,6 +19,12 @@ import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.runtime.*
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -25,6 +38,7 @@ import com.mattrobertson.greek.reader.verseref.VerseRef
 @Composable
 fun ReadingPlansScreen(
     onReadChapter: (VerseRef) -> Unit,
+    onReadToday: (Int, Int) -> Unit,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
@@ -51,6 +65,7 @@ fun ReadingPlansScreen(
                     revision = revision,
                     onProgressChanged = { revision++ },
                     onReadChapter = onReadChapter,
+                    onReadToday = { day -> onReadToday(selected, day) },
                     onBack = { selectedPlan = null }
                 )
             }
@@ -119,6 +134,7 @@ private fun PlanDetails(
     revision: Int,
     onProgressChanged: () -> Unit,
     onReadChapter: (VerseRef) -> Unit,
+    onReadToday: (Int) -> Unit,
     onBack: () -> Unit
 ) {
     val plan = ReadingPlans.all[planIndex]
@@ -154,7 +170,7 @@ private fun PlanDetails(
                 previewDay = previewDay,
                 prefs = prefs,
                 onProgressChanged = onProgressChanged,
-                onReadChapter = onReadChapter
+                onReadToday = onReadToday
             )
             Spacer(Modifier.height(16.dp))
             Text("Schedule", style = MaterialTheme.typography.h6)
@@ -213,8 +229,9 @@ private fun PlanAction(
     previewDay: Int,
     prefs: SharedPreferences,
     onProgressChanged: () -> Unit,
-    onReadChapter: (VerseRef) -> Unit
+    onReadToday: (Int) -> Unit
 ) {
+    val context = LocalContext.current
     Card(modifier = Modifier.fillMaxWidth(), elevation = 3.dp) {
         Column(modifier = Modifier.padding(16.dp)) {
             when {
@@ -240,11 +257,12 @@ private fun PlanAction(
                     Text(plan.days[previewDay].joinToString { "${it.book.abbrv} ${it.chapter}" })
                     Spacer(Modifier.height(12.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { onReadChapter(plan.days[previewDay].first()) }) {
-                            Text("Read")
+                        Button(onClick = { onReadToday(previewDay) }) {
+                            Text("Read today's plan")
                         }
                         OutlinedButton(onClick = {
                             setProgress(prefs, planIndex, progress + 1)
+                            if (progress == plan.days.lastIndex) ReadingPlanReminderScheduler.cancel(context, planIndex)
                             onProgressChanged()
                         }) { Text(if (progress == plan.days.lastIndex) "Finish plan" else "Complete day") }
                     }
@@ -254,7 +272,62 @@ private fun PlanAction(
                     }) { Text("Reset progress") }
                 }
             }
+            if (progress in 0 until plan.days.size) {
+                Spacer(Modifier.height(8.dp))
+                ReminderSettings(planIndex, prefs, onProgressChanged)
+            }
         }
+    }
+}
+
+@Composable
+private fun ReminderSettings(planIndex: Int, prefs: SharedPreferences, onChanged: () -> Unit) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var enabled by remember(planIndex) { mutableStateOf(prefs.getBoolean(reminderEnabledKey(planIndex), false)) }
+    var hour by remember(planIndex) { mutableIntStateOf(prefs.getInt(reminderHourKey(planIndex), 9)) }
+    var minute by remember(planIndex) { mutableIntStateOf(prefs.getInt(reminderMinuteKey(planIndex), 0)) }
+    LaunchedEffect(enabled, hour, minute) {
+        if (enabled) ReadingPlanReminderScheduler.schedule(context, planIndex, hour, minute)
+    }
+    fun enableExactAlarm() {
+        if (Build.VERSION.SDK_INT >= 31 && !context.getSystemService(AlarmManager::class.java).canScheduleExactAlarms()) {
+            context.startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:${context.packageName}")))
+        } else ReadingPlanReminderScheduler.schedule(context, planIndex, hour, minute)
+    }
+    val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) enableExactAlarm() else {
+            enabled = false
+            prefs.edit().putBoolean(reminderEnabledKey(planIndex), false).apply()
+        }
+    }
+    DisposableEffect(lifecycleOwner, enabled, planIndex) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME && enabled) ReadingPlanReminderScheduler.schedule(context, planIndex, hour, minute)
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    Text("Daily reminder", style = MaterialTheme.typography.subtitle1)
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Switch(checked = enabled, onCheckedChange = { turnOn ->
+            enabled = turnOn
+            prefs.edit().putBoolean(reminderEnabledKey(planIndex), turnOn).apply()
+            if (turnOn) {
+                if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                } else enableExactAlarm()
+            } else ReadingPlanReminderScheduler.cancel(context, planIndex)
+            onChanged()
+        })
+        Spacer(Modifier.width(8.dp))
+        TextButton(onClick = {
+            TimePickerDialog(context, { _, h, m ->
+                hour = h; minute = m
+                prefs.edit().putInt(reminderHourKey(planIndex), h).putInt(reminderMinuteKey(planIndex), m).apply()
+                if (enabled) ReadingPlanReminderScheduler.schedule(context, planIndex, h, m)
+            }, hour, minute, true).show()
+        }) { Text(String.format("%02d:%02d", hour, minute)) }
     }
 }
 
@@ -269,3 +342,6 @@ private fun setProgress(prefs: SharedPreferences, planIndex: Int, day: Int) {
 
 // This is also the key used by v7, so upgrades retain existing plan progress.
 private fun progressKey(planIndex: Int) = "plan-$planIndex-day"
+internal fun reminderEnabledKey(planIndex: Int) = "plan-$planIndex-reminder-enabled"
+internal fun reminderHourKey(planIndex: Int) = "plan-$planIndex-reminder-hour"
+internal fun reminderMinuteKey(planIndex: Int) = "plan-$planIndex-reminder-minute"

@@ -24,12 +24,12 @@ jobs:
         java-version: '17'
         cache: 'gradle'
 
-    - name: Test and build with Gradle
-      run: ./gradlew testDebugUnitTest assembleDebug
+    - name: Build optimized release with Gradle
+      run: ./gradlew assembleRelease
 
-    - name: Upload debug APK
+    - name: Upload release APK
       uses: actions/upload-artifact@v5
       with:
-        name: gnt-reader-debug-apk
-        path: app/build/outputs/apk/debug/app-debug.apk
+        name: gnt-reader-release-apk
+        path: app/build/outputs/apk/release/app-release-unsigned.apk
         if-no-files-found: error
