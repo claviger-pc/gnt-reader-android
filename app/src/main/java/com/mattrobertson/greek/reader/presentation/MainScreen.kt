@@ -184,6 +184,12 @@ fun MainScreen(
                                 dayIndex = planDay!!.second,
                                 settings = settings,
                                 verseRepo = viewModel.verseRepo,
+                                onWordSelected = {
+                                    word = it
+                                    coroutineScope.launch {
+                                        bottomSheetState.show()
+                                    }
+                                },
                                 onDismiss = { planDay = null },
                                 onComplete = {
                                     val (index, day) = planDay!!
@@ -298,6 +304,7 @@ private fun PlanDayReader(
     dayIndex: Int,
     settings: com.mattrobertson.greek.reader.settings.Settings,
     verseRepo: com.mattrobertson.greek.reader.db.api.repo.VerseRepo,
+    onWordSelected: (Word) -> Unit,
     onDismiss: () -> Unit,
     onComplete: () -> Unit
 ) {
@@ -341,7 +348,7 @@ private fun PlanDayReader(
                     if (ref.chapter == 1 || index == 0 || passages[index - 1].book != ref.book) {
                         BookTitle(getBookTitle(ref.book), settings)
                     }
-                    ChapterText(settings, ref, verses, onWordSelected = {})
+                    ChapterText(settings, ref, verses, onWordSelected = onWordSelected)
                     Spacer(Modifier.height(24.dp))
                 }
             }
