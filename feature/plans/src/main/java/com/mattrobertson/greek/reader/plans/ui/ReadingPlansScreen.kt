@@ -281,7 +281,7 @@ private fun PlanAction(
 }
 
 @Composable
-private fun ReminderSettings(planIndex: Int, prefs: SharedPreferences, onChanged: () -> Unit) {
+internal fun ReminderSettings(planIndex: Int, prefs: SharedPreferences, onChanged: () -> Unit) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     var enabled by remember(planIndex) { mutableStateOf(prefs.getBoolean(reminderEnabledKey(planIndex), false)) }
@@ -341,7 +341,7 @@ private fun setProgress(prefs: SharedPreferences, planIndex: Int, day: Int) {
 }
 
 // This is also the key used by v7, so upgrades retain existing plan progress.
-private fun progressKey(planIndex: Int) = "plan-$planIndex-day"
+internal fun progressKey(planIndex: Int) = "plan-$planIndex-day"
 internal fun reminderEnabledKey(planIndex: Int) = "plan-$planIndex-reminder-enabled"
 internal fun reminderHourKey(planIndex: Int) = "plan-$planIndex-reminder-hour"
 internal fun reminderMinuteKey(planIndex: Int) = "plan-$planIndex-reminder-minute"
