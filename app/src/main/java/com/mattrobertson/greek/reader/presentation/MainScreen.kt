@@ -57,7 +57,7 @@ import com.mattrobertson.greek.reader.verseref.getBookTitle
 import com.mattrobertson.greek.reader.vocab.ui.VocabScreen
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.distinctUntilChanged
 
 @ExperimentalAnimationApi
 @ExperimentalFoundationApi
@@ -78,16 +78,20 @@ fun MainScreen(
         mutableStateOf(appPreferences.getBoolean("reader_paginated", false))
     }
 
-    val scrollLocation = runBlocking { context.scrollLocationDataStore.data.first() }
+    val scrollLocation by produceState<com.mattrobertson.greek.reader.ScrollLocation?>(initialValue = null) {
+        value = context.scrollLocationDataStore.data.first()
+    }
+    val restoredLocation = scrollLocation ?: return
 
     val listState = rememberLazyListState(
-        initialFirstVisibleItemIndex = scrollLocation.position,
-        initialFirstVisibleItemScrollOffset = scrollLocation.offset
+        initialFirstVisibleItemIndex = restoredLocation.position,
+        initialFirstVisibleItemScrollOffset = restoredLocation.offset
     )
 
-    SideEffect {
-        val ref = VerseRef.fromAbsoluteChapterNum(listState.firstVisibleItemIndex)
-        viewModel.onChangeVerseRef(ref)
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.firstVisibleItemIndex }
+            .distinctUntilChanged()
+            .collect { viewModel.onChangeVerseRef(VerseRef.fromAbsoluteChapterNum(it)) }
     }
 
     val coroutineScope = rememberCoroutineScope()
@@ -238,6 +242,7 @@ fun MainScreen(
                 ) {
                     TableOfContents(
                         onSelected = { position ->
+                            planDay = null
                             coroutineScope.launch {
                                 bottomSheetState.hide()
                                 listState.scrollToItem(position)
@@ -260,6 +265,7 @@ fun MainScreen(
                 ) {
                     ReadingPlansScreen(
                         onReadChapter = { ref ->
+                            planDay = null
                             coroutineScope.launch {
                                 listState.scrollToItem(ref.absoluteChapterNum())
                             }
@@ -327,6 +333,7 @@ private fun PlanDayReader(
     val plan = ReadingPlans.all[planIndex]
     val passages = plan.days[dayIndex]
     var completed by remember(planIndex, dayIndex) { mutableStateOf(false) }
+    var isLastReadingPage by remember(planIndex, dayIndex) { mutableStateOf(false) }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -338,11 +345,18 @@ private fun PlanDayReader(
         },
         bottomBar = {
             Surface(elevation = 8.dp) {
-                Button(
-                    onClick = { if (!completed) { completed = true; onComplete() } },
-                    enabled = !completed,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)
-                ) { Text(if (completed) "Day completed" else "Mark day complete") }
+                Box(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp).height(48.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (!paginated || isLastReadingPage) {
+                        Button(
+                            onClick = { if (!completed) { completed = true; onComplete() } },
+                            enabled = !completed,
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text(if (completed) "Day completed" else "Mark day complete") }
+                    }
+                }
             }
         }
     ) { padding ->
@@ -360,6 +374,7 @@ private fun PlanDayReader(
                     settings = settings,
                     chapters = chapters,
                     onWordSelected = onWordSelected,
+                    onLastPageChanged = { isLastReadingPage = it },
                     modifier = Modifier.fillMaxSize().padding(padding)
                 )
             } else {

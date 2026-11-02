@@ -9,6 +9,12 @@ A digital reader's edition of the Greek New Testament for Android.
  - Audio
  - Reading plans with daily reminders
 
+## Reader fixes (v8.1.6)
+
+Corrects pagination to measure the text area without navigation controls, keeps the daily completion button on the final page, and fixes chapter selection and word taps with verse line breaks. Gloss, concordance, vocabulary, and saved-position loading no longer block composition. Missing dictionary entries display “No gloss available.” Changing audio pronunciation resumes active playback, and reminders remain compatible with Android 5–6 and denied notification permission.
+
+Build with JDK 17 and Android SDK 34: `./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease`. The build uses Gradle 8.4 and Android Gradle Plugin 8.3.2 so Compose lint checks run correctly. CI runs the same tests and lint before building its release artifact.
+
 ## Reading plans (v8.1.5)
 
 The six reading plans from v7 are available again. Start a plan, then open Settings for its daily reminder toggle, notification time, and reset action. Android may ask for notification permission (Android 13+) and exact alarm access (Android 12+). If exact alarms are not allowed, Android may deliver the reminder a little later than the selected time.
@@ -25,7 +31,7 @@ Pagination safely ignores trailing empty lines after the end of a daily reading,
 
 [Download the latest APK from GitHub Releases](https://github.com/claviger-pc/gnt-reader-android/releases/latest).
 
-The v8.1.5 APK is a minified release build with unused resources removed. It is signed with a local development certificate because this fork does not have a release keystore configured; it installs as a fresh app, but cannot update an installation signed by Google Play or another key.
+The v8.1.6 APK is a minified release build with unused resources removed. It is signed with a local development certificate because this fork does not have a release keystore configured; it installs as a fresh app, but cannot update an installation signed by Google Play or another key.
 
 ## App size
 

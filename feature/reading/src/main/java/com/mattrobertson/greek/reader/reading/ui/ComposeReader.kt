@@ -17,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.*
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -82,15 +83,13 @@ private fun ScrollingReader(
 
     val context = LocalContext.current
 
-    SideEffect {
-        coroutineScope.launch {
-            context.scrollLocationDataStore.updateData { scrollLocation ->
-                scrollLocation.toBuilder()
-                    .setPosition(listState.firstVisibleItemIndex)
-                    .setOffset(listState.firstVisibleItemScrollOffset)
-                    .build()
+    LaunchedEffect(listState, context) {
+        snapshotFlow { listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset }
+            .collect { (position, offset) ->
+                context.scrollLocationDataStore.updateData { location ->
+                    location.toBuilder().setPosition(position).setOffset(offset).build()
+                }
             }
-        }
     }
 
     Box {
@@ -144,7 +143,7 @@ private fun PaginatedReader(
     onWordSelected: (word: Word) -> Unit
 ) {
     val coroutineScope = rememberCoroutineScope()
-    var chapterIndex by rememberSaveable { mutableIntStateOf(initialChapter.coerceIn(0, 259)) }
+    var chapterIndex by rememberSaveable(initialChapter) { mutableIntStateOf(initialChapter.coerceIn(0, 259)) }
     fun moveToChapter(chapter: Int) {
         chapterIndex = chapter.coerceIn(0, 259)
         onChapterChanged(chapterIndex)
@@ -176,9 +175,14 @@ private fun PaginatedReader(
         val contentWidthPx = with(density) {
             (maxWidth - margins * 2).roundToPx().coerceAtLeast(1)
         }
-        // Leave room for the chapter controls and page indicator when measuring the page body.
+        var measuredPageHeightPx by remember { mutableIntStateOf(0) }
         val pageBodyHeightPx = with(density) {
-            (maxHeight - 112.dp).coerceAtLeast(120.dp).roundToPx()
+            val availableHeight = if (measuredPageHeightPx > 0) {
+                measuredPageHeightPx.toDp()
+            } else {
+                maxHeight - 128.dp
+            }
+            (availableHeight - 4.dp).coerceAtLeast(1.dp).roundToPx()
         }
         val textMeasurer = rememberTextMeasurer()
         val fullLayout = remember(chapterText, textStyle, contentWidthPx, textMeasurer) {
@@ -231,12 +235,11 @@ private fun PaginatedReader(
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxWidth()
-                                .padding(horizontal = margins),
+                                .padding(horizontal = margins)
+                                .onSizeChanged { measuredPageHeightPx = it.height },
                             onClick = { localOffset ->
                                 val globalOffset = slice.start + localOffset
-                                val tappedWord = wordMap.entries.firstOrNull { (wordOffset, word) ->
-                                    globalOffset >= wordOffset && globalOffset < wordOffset + word.text.length
-                                }?.value
+                                val tappedWord = wordAtOffset(wordMap, globalOffset)
                                 if (tappedWord != null) {
                                     clickedOffset = globalOffset
                                     onWordSelected(tappedWord)
@@ -276,36 +279,18 @@ private fun PaginatedReader(
     }
 }
 
-private data class ReaderPageSlice(val start: Int, val endExclusive: Int)
+internal data class ReaderPageSlice(val start: Int, val endExclusive: Int)
 
 private fun splitIntoPages(
     layout: TextLayoutResult,
     textLength: Int,
     pageHeightPx: Int
 ): List<ReaderPageSlice> {
-    if (textLength == 0) return listOf(ReaderPageSlice(0, 0))
-
-    val pages = mutableListOf<ReaderPageSlice>()
-    var firstLine = 0
-    var startOffset = 0
-    while (firstLine < layout.lineCount && startOffset < textLength) {
-        val pageTop = layout.getLineTop(firstLine)
-        var lastLine = firstLine
-        while (lastLine + 1 < layout.lineCount &&
-            layout.getLineBottom(lastLine + 1) - pageTop <= pageHeightPx
-        ) {
-            lastLine++
-        }
-
-        val endOffset = layout.getLineEnd(lastLine).coerceIn(startOffset, textLength)
-        if (endOffset > startOffset) {
-            pages += ReaderPageSlice(startOffset, endOffset)
-        }
-        startOffset = endOffset
-        firstLine = lastLine + 1
-    }
-    if (startOffset < textLength) pages += ReaderPageSlice(startOffset, textLength)
-    return pages.ifEmpty { listOf(ReaderPageSlice(0, textLength)) }
+    return paginateLines(
+        textLength, pageHeightPx, layout.lineCount,
+        layout::getLineTop, layout::getLineBottom,
+        { layout.getLineEnd(it) }
+    )
 }
 
 @Composable
@@ -359,9 +344,7 @@ fun ChapterText(
     verses: List<Verse>,
     onWordSelected: (word: Word) -> Unit
 ) {
-    var chapterText by remember { mutableStateOf(AnnotatedString("")) }
-
-    val wordMap by remember { mutableStateOf(mutableMapOf<Int, Word>()) }
+    val wordMap = remember { mutableMapOf<Int, Word>() }
 
     var clickedIndex by remember { mutableStateOf(-1) }
 
@@ -373,7 +356,7 @@ fun ChapterText(
         return
     }
 
-    chapterText = buildChapterText(
+    val chapterText = buildChapterText(
         settings = settings,
         chapterRef = chapterRef,
         verses = verses,
@@ -392,23 +375,16 @@ fun ChapterText(
             ),
             modifier = Modifier.padding(horizontal = sideMargins()),
             onClick = { clickOffset ->
-                wordMap.forEach { entry ->
-                    val wordOffset = entry.key
-                    val word = entry.value
-
+                wordAtOffset(wordMap, clickOffset)?.let {
                     clickedIndex = clickOffset
-
-                    if (wordOffset > clickOffset)
-                        return@forEach
-
-                    onWordSelected(word)
+                    onWordSelected(it)
                 }
             }
         )
     }
 }
 
-private fun buildChapterText(
+internal fun buildChapterText(
     settings: Settings,
     chapterRef: VerseRef,
     verses: List<Verse>,
@@ -416,14 +392,13 @@ private fun buildChapterText(
     clickedIndex: Int
 ): AnnotatedString {
 
-    var offset = 0
+    wordMap.clear()
 
     return buildAnnotatedString {
         withStyle(
             style = SpanStyle(fontSize = settings.fontSize * 1.5)
         ) {
             val text = " ${chapterRef.chapter} "
-            offset += text.length
             append(text)
         }
 
@@ -436,17 +411,14 @@ private fun buildChapterText(
                     )
                 ) {
                     val text = " ${it.verseRef.verse}"
-                    offset += text.length
                     append(text)
                 }
             }
 
             it.words.forEach { word ->
-                wordMap[offset] = word
-                val oldOffset = offset
-                offset += word.text.length + 1
-
-                val isClicked = clickedIndex in oldOffset..offset
+                val wordStart = length
+                wordMap[wordStart] = word
+                val isClicked = clickedIndex >= wordStart && clickedIndex < wordStart + word.text.length
 
                 val wordFontWeight =
                     if (isClicked)
@@ -489,6 +461,7 @@ fun PaginatedPlanContent(
     settings: Settings,
     chapters: List<PlanReaderChapter>,
     onWordSelected: (Word) -> Unit,
+    onLastPageChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val coroutineScope = rememberCoroutineScope()
@@ -527,7 +500,15 @@ fun PaginatedPlanContent(
 
     BoxWithConstraints(modifier.fillMaxSize()) {
         val contentWidthPx = with(density) { (maxWidth - margins * 2).roundToPx().coerceAtLeast(1) }
-        val pageBodyHeightPx = with(density) { (maxHeight - 112.dp).coerceAtLeast(120.dp).roundToPx() }
+        var measuredPageHeightPx by remember { mutableIntStateOf(0) }
+        val pageBodyHeightPx = with(density) {
+            val availableHeight = if (measuredPageHeightPx > 0) {
+                measuredPageHeightPx.toDp()
+            } else {
+                maxHeight - 128.dp
+            }
+            (availableHeight - 4.dp).coerceAtLeast(1.dp).roundToPx()
+        }
         val layout = remember(readingText, textStyle, contentWidthPx, textMeasurer) {
             textMeasurer.measure(
                 text = readingText,
@@ -539,6 +520,13 @@ fun PaginatedPlanContent(
             splitIntoPages(layout, readingText.length, pageBodyHeightPx)
         }
         val pagerState = rememberPagerState(pageCount = { pages.size })
+        LaunchedEffect(pagerState.settledPage, pagerState.isScrollInProgress, pages.lastIndex, measuredPageHeightPx) {
+            onLastPageChanged(
+                measuredPageHeightPx > 0 &&
+                    pages.isNotEmpty() &&
+                    !pagerState.isScrollInProgress && pagerState.settledPage >= pages.lastIndex
+            )
+        }
 
         Column(Modifier.fillMaxSize()) {
             Text(
@@ -552,17 +540,19 @@ fun PaginatedPlanContent(
                 style = MaterialTheme.typography.body2,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
             )
-            HorizontalPager(state = pagerState, modifier = Modifier.weight(1f).fillMaxWidth()) { pageIndex ->
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.weight(1f).fillMaxWidth()
+            ) { pageIndex ->
                 val slice = pages[pageIndex]
                 ClickableText(
                     text = readingText.subSequence(slice.start, slice.endExclusive),
                     style = textStyle,
-                    modifier = Modifier.fillMaxSize().padding(horizontal = margins),
+                    modifier = Modifier.fillMaxSize().padding(horizontal = margins)
+                        .onSizeChanged { measuredPageHeightPx = it.height },
                     onClick = { localOffset ->
                         val globalOffset = slice.start + localOffset
-                        val tappedWord = wordMap.entries.firstOrNull { (wordOffset, word) ->
-                            globalOffset >= wordOffset && globalOffset < wordOffset + word.text.length
-                        }?.value
+                        val tappedWord = wordAtOffset(wordMap, globalOffset)
                         if (tappedWord != null) {
                             clickedOffset = globalOffset
                             onWordSelected(tappedWord)

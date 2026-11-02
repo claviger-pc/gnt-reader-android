@@ -26,7 +26,7 @@ object ReadingPlanReminderScheduler {
             set(Calendar.HOUR_OF_DAY, hour); set(Calendar.MINUTE, minute); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
             if (!after(now)) add(Calendar.DAY_OF_YEAR, 1)
         }
-        val alarms = context.getSystemService(AlarmManager::class.java)
+        val alarms = (context.getSystemService(Context.ALARM_SERVICE) as AlarmManager)
         if (Build.VERSION.SDK_INT >= 31 && !alarms.canScheduleExactAlarms()) {
             alarms.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next.timeInMillis, pending)
         } else if (Build.VERSION.SDK_INT >= 23) {
@@ -39,7 +39,7 @@ object ReadingPlanReminderScheduler {
     fun cancel(context: Context, planIndex: Int) {
         val intent = Intent(context, ReadingPlanReminderReceiver::class.java).setAction(ACTION_REMIND)
         PendingIntent.getBroadcast(context, planIndex, intent, PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE)?.let {
-            context.getSystemService(AlarmManager::class.java).cancel(it)
+            (context.getSystemService(Context.ALARM_SERVICE) as AlarmManager).cancel(it)
             it.cancel()
         }
     }
@@ -50,7 +50,7 @@ object ReadingPlanReminderScheduler {
         val progress = prefs.getInt("plan-$planIndex-day", -1)
         if (!prefs.getBoolean(reminderEnabledKey(planIndex), false) || progress !in ReadingPlans.all[planIndex].days.indices) return
         if (Build.VERSION.SDK_INT >= 26) {
-            context.getSystemService(NotificationManager::class.java).createNotificationChannel(
+            (context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(
                 NotificationChannel(CHANNEL_ID, "Reading plan reminders", NotificationManager.IMPORTANCE_DEFAULT)
             )
         }
@@ -68,7 +68,12 @@ object ReadingPlanReminderScheduler {
             .setContentIntent(contentIntent)
             .setAutoCancel(true)
             .build()
-        context.getSystemService(NotificationManager::class.java).notify(1000 + planIndex, notification)
+        if (Build.VERSION.SDK_INT < 33 || androidx.core.content.ContextCompat.checkSelfPermission(
+                context, android.Manifest.permission.POST_NOTIFICATIONS
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            (context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).notify(1000 + planIndex, notification)
+        }
         schedule(context, planIndex, prefs.getInt(reminderHourKey(planIndex), 9), prefs.getInt(reminderMinuteKey(planIndex), 0))
     }
 }

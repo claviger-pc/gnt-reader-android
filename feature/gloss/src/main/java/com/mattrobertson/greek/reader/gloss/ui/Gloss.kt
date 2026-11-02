@@ -17,7 +17,7 @@ import com.mattrobertson.greek.reader.db.api.repo.GlossesRepo
 import com.mattrobertson.greek.reader.settings.Settings
 import com.mattrobertson.greek.reader.ui.settings.getComposeFontFamily
 import com.mattrobertson.greek.reader.verseref.Word
-import kotlinx.coroutines.runBlocking
+import androidx.compose.runtime.*
 
 @Composable
 fun Gloss(
@@ -25,8 +25,9 @@ fun Gloss(
     glossesRepo: GlossesRepo,
     settings: Settings
 ) {
-    val gloss = runBlocking {
-        glossesRepo.getGloss(word.lexicalForm)
+    val gloss by produceState<String?>(initialValue = null, key1 = word.lexicalForm, key2 = glossesRepo) {
+        value = null
+        value = glossesRepo.getGloss(word.lexicalForm) ?: "No gloss available"
     }
 
     Text(
@@ -52,7 +53,7 @@ fun Gloss(
                         fontFamily = FontFamily.SansSerif
                     )
                 ) {
-                    append("${gloss}\n")
+                    append("${gloss ?: "Loading…"}\n")
                 }
 
                 withStyle(

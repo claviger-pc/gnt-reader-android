@@ -20,8 +20,8 @@ val cliProps = Version(
 
 // Read from local.properties
 val localProps = Version(
-    code = gradleLocalProperties(rootDir).getProperty("versionCode")?.toInt(),
-    name = gradleLocalProperties(rootDir).getProperty("versionName")
+    code = gradleLocalProperties(rootDir, providers).getProperty("versionCode")?.toInt(),
+    name = gradleLocalProperties(rootDir, providers).getProperty("versionName")
 )
 
 /*
@@ -29,12 +29,12 @@ val localProps = Version(
  * local.properties when running local builds.
  */
 
-val appVersionCode: Int = 38
+val appVersionCode: Int = 39
 //    cliProps.code ?:
 //    localProps.code ?:
 //    throw InvalidUserDataException("No versionCode provided. You must provide a version code via CLI properties or local.properties.")
 
-val appVersionName: String = "8.1.5"
+val appVersionName: String = "8.1.6"
 //    cliProps.name ?:
 //    localProps.name ?:
 //    throw InvalidUserDataException("No versionName provided. You must provide a version name via CLI properties or local.properties.")

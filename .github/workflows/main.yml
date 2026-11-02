@@ -24,8 +24,8 @@ jobs:
         java-version: '17'
         cache: 'gradle'
 
-    - name: Build optimized release with Gradle
-      run: ./gradlew assembleRelease
+    - name: Test, lint, and build optimized release
+      run: ./gradlew testDebugUnitTest lintDebug assembleRelease
 
     - name: Upload release APK
       uses: actions/upload-artifact@v5

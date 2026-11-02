@@ -31,12 +31,9 @@ android {
         jvmTarget = AppConfig.jvmTarget
     }
 
-//    testOptions {
-//        unitTests.all {
-//            useJUnitPlatform()
-//        }
-//        unitTests.includeAndroidResources = true
-//    }
+    testOptions {
+        unitTests.all { it.useJUnitPlatform() }
+    }
 }
 
 dependencies {

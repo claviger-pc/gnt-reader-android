@@ -28,7 +28,8 @@ import com.mattrobertson.greek.reader.verseref.Book
 import com.mattrobertson.greek.reader.verseref.VerseRef
 import com.mattrobertson.greek.reader.verseref.Word
 import com.mattrobertson.greek.reader.verseref.getBookAbbrv
-import kotlinx.coroutines.runBlocking
+import androidx.compose.runtime.*
+import com.mattrobertson.greek.reader.db.api.models.ConcordanceModel
 
 @Composable
 fun Concordance(
@@ -37,8 +38,9 @@ fun Concordance(
     concordanceRepo: ConcordanceRepo,
     settings: Settings
 ) {
-    val concordanceList = runBlocking {
-        concordanceRepo.getConcordanceEntries(word.lexicalForm)
+    val concordanceList by produceState(initialValue = emptyList<ConcordanceModel>(), key1 = word.lexicalForm) {
+        value = emptyList()
+        value = concordanceRepo.getConcordanceEntries(word.lexicalForm)
     }
 
     LazyColumn {
@@ -81,6 +83,11 @@ fun Concordance(
         }
 
         itemsIndexed(concordanceList) {index, entity ->
+            val ref = VerseRef(Book(entity.book), entity.chapter, entity.verse)
+            val words by produceState(initialValue = emptyList<Word>(), key1 = ref) {
+                value = emptyList()
+                value = verseRepo.getVerseWords(ref)
+            }
             Text(
                 modifier = Modifier.padding(
                     horizontal = 16.dp,
@@ -109,15 +116,6 @@ fun Concordance(
                             fontFamily = settings.font.getComposeFontFamily()
                         )
                     ) {
-                        val ref = VerseRef(
-                            Book(entity.book),
-                            entity.chapter,
-                            entity.verse
-                        )
-                        val words = runBlocking {
-                            verseRepo.getVerseWords(ref)
-                        }
-
                         words.forEach {
                             val selected = (it.lexicalForm == word.lexicalForm)
 

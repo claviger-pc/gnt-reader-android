@@ -56,6 +56,7 @@ class MainViewModel @Inject constructor(
         )
 
     fun onChangeVerseRef(ref: VerseRef) {
+        if (_currentRef.value == ref) return
         _currentRef.update { ref }
         when (audioPlaybackState.value) {
             Playing, Paused, Buffering -> audioService.stop()

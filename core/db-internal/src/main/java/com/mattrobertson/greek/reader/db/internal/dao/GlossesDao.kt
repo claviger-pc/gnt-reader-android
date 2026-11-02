@@ -20,5 +20,5 @@ interface GlossesDao {
 	suspend fun getGlossEntity(lex: String): GlossEntity
 
 	@Query("SELECT `gloss` FROM $GLOSSES_TABLE WHERE `lex` = :lex LIMIT 1")
-	suspend fun getGloss(lex: String): String
+	suspend fun getGloss(lex: String): String?
 }

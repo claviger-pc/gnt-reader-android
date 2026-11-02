@@ -28,7 +28,6 @@ import com.mattrobertson.greek.reader.ui.theme.AppTheme
 import com.mattrobertson.greek.reader.verseref.Book
 import com.mattrobertson.greek.reader.verseref.VerseRef
 import com.mattrobertson.greek.reader.verseref.getBookTitleLocalized
-import kotlinx.coroutines.runBlocking
 
 @Composable
 fun VocabScreen(
@@ -42,12 +41,10 @@ fun VocabScreen(
             .fillMaxSize()
             .background(MaterialTheme.colors.surface)
     ) {
-        var words by remember { mutableStateOf(emptyList<GlossModel>()) }
-
         var maxOcc by remember { mutableStateOf(100) }
-
-        words = runBlocking {
-            vocabRepo.getVocabWordsForChapter(ref, maxOcc)
+        val words by produceState(initialValue = emptyList<GlossModel>(), key1 = ref, key2 = maxOcc) {
+            value = emptyList()
+            value = vocabRepo.getVocabWordsForChapter(ref, maxOcc)
         }
 
         VocabScreenInternal(

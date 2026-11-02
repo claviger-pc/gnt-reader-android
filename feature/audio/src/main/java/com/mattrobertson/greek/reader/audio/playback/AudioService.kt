@@ -30,6 +30,7 @@ import kotlinx.coroutines.launch
 import java.io.ByteArrayOutputStream
 import javax.inject.Inject
 
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @AndroidEntryPoint
 class AudioService: MediaSessionService() {
 
@@ -72,9 +73,10 @@ class AudioService: MediaSessionService() {
         serviceScope.launch {
             audioSettings.pronunciation.collect {
                 if (pronunciation != it) {
+                    val resumePlayback = player.playWhenReady && player.playbackState != androidx.media3.common.Player.STATE_IDLE
                     player.stop()
                     pronunciation = it
-                    if (player.isPlaying) {
+                    if (resumePlayback) {
                         currentRef?.let { currentRef ->
                             player.play(currentRef)
                         }
